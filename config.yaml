@@ -1,0 +1,44 @@
+# JAX CMB Pipeline Configuration
+# Configuration for Planck TT-only MCMC inference
+
+# Data paths
+data:
+  base_path: "data/plik_lite_v22_TT.clik/clik/lkl_0/_external/"
+  cl_file: "cl_cmb_plik_v22.dat"
+  cov_file: "c_matrix_plik_v22.dat"
+
+# Emulator settings
+emulator:
+  probe: "cmb_tt"
+
+# Prior bounds (uniform priors)
+# Parameters: omega_b, omega_cdm, h, tau, n_s, ln10^10A_s
+priors:
+  omega_b: [0.005, 0.1]      # Physical baryon density
+  omega_cdm: [0.001, 0.99]   # Physical CDM density
+  h: [0.4, 1.0]              # Reduced Hubble constant
+  tau: [0.01, 0.8]           # Optical depth to reionization
+  n_s: [0.8, 1.2]            # Scalar spectral index
+  ln10_10_A_s: [1.61, 4.0]   # Log primordial amplitude
+
+# Initial position for MCMC
+initial_position:
+  omega_b: 0.025
+  omega_cdm: 0.11
+  h: 0.68
+  tau: 0.1
+  n_s: 0.97
+  ln10_10_A_s: 3.1
+
+# Sampling settings
+sampling:
+  num_samples: 50
+  step_size: 0.001
+  inv_mass_matrix: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
+  random_seed: 0
+
+# Output settings
+output:
+  directory: "outputs"
+  save_samples: true
+  generate_plots: true
