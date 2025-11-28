@@ -1,98 +1,94 @@
 """
-MCMC inference using NUTS sampler.
+Nested sampling inference using blackjax.nss.
 """
 import jax
-import jax.numpy as jnp
-import numpy as np
 import blackjax
-from datetime import datetime
+from blackjax.ns.utils import uniform_prior
+from tqdm import tqdm
 
-
-def run_inference(log_posterior, config):
+def run_inference(config, log_likelihood):
     """
-    Run NUTS MCMC sampling to infer cosmological parameters.
+    Run nested sampling to infer cosmological parameters.
 
     Parameters
     ----------
-    log_posterior : callable
-        JIT-compiled log-posterior function
     config : dict
-        Configuration dictionary containing sampling settings and initial position
+        Configuration dictionary containing sampling settings and prior bounds
+    log_likelihood : callable
+        JIT-compiled log-likelihood function
 
     Returns
     -------
-    states : blackjax.mcmc.nuts.NUTSInfo
-        NUTS sampling states containing parameter traces and diagnostics
+    results : dict
+        Dictionary containing:
+        - 'samples': Parameter samples (combined dead + live points)
+        - 'logL': Log-likelihood values for each sample
+        - 'logwt': Log-weights for each sample
+        - 'logZ': Log-evidence estimate
+        - 'logZ_err': Uncertainty in log-evidence
+        - 'live': Final live points state
     """
     print("=" * 60)
-    print("MCMC Inference Configuration")
+    print("Nested Sampling Configuration")
     print("=" * 60)
 
     # Extract sampling settings
-    num_samples = config['sampling']['num_samples']
-    step_size = config['sampling']['step_size']
-    inv_mass_matrix = np.array(config['sampling']['inv_mass_matrix'])
+    num_live_points = config['sampling']['num_live_points']
+    num_delete = config['sampling'].get('num_delete', 50)
+    num_inner_steps = config['sampling'].get('num_inner_steps', 20)
+    convergence_threshold = config['sampling'].get('convergence_threshold', -3.0)
     random_seed = config['sampling']['random_seed']
 
-    # Extract initial position
-    init_pos = config['initial_position']
-    initial_position = np.array([
-        init_pos['omega_b'],
-        init_pos['omega_cdm'],
-        init_pos['h'],
-        init_pos['tau'],
-        init_pos['n_s'],
-        init_pos['ln10_10_A_s']
-    ])
+    # Extract prior bounds for uniform_prior
+    priors_config = config['priors']
+    prior_bounds = {
+        'omega_b': tuple(priors_config['omega_b']),
+        'omega_cdm': tuple(priors_config['omega_cdm']),
+        'h': tuple(priors_config['h']),
+        'tau_reio': tuple(priors_config['tau_reio']),
+        'n_s': tuple(priors_config['n_s']),
+        'ln10^{10}A_s': tuple(priors_config['ln10^{10}A_s']),
+    }
 
-    print(f"  Sampler: NUTS (No-U-Turn Sampler)")
-    print(f"  Number of samples: {num_samples}")
-    print(f"  Step size: {step_size}")
-    print(f"  Random seed: {random_seed}")
-    print(f"  Initial position:")
-    print(f"    omega_b     = {initial_position[0]}")
-    print(f"    omega_cdm   = {initial_position[1]}")
-    print(f"    h           = {initial_position[2]}")
-    print(f"    tau         = {initial_position[3]}")
-    print(f"    n_s         = {initial_position[4]}")
-    print(f"    ln10^10A_s  = {initial_position[5]}")
+    print(f"  Live points: {num_live_points}")
+    print(f"  Delete per iteration: {num_delete}")
+    print(f"  Inner MCMC steps: {num_inner_steps}")
+    print(f"  Convergence: {convergence_threshold}")
     print("=" * 60)
     print()
 
-    # Initialize NUTS sampler
-    print("Initializing NUTS sampler...")
-    nuts = blackjax.nuts(log_posterior, step_size, inv_mass_matrix)
-    initial_state = nuts.init(initial_position)
-
-    # Create JIT-compiled kernel
-    nuts_kernel = jax.jit(nuts.step)
-
-    # Define inference loop
-    def inference_loop(rng_key, kernel, initial_state, num_samples):
-        """Run MCMC sampling loop."""
-        @jax.jit
-        def one_step(state, rng_key):
-            state, info = kernel(rng_key, state)
-            return state, state
-
-        keys = jax.random.split(rng_key, num_samples)
-        _, states = jax.lax.scan(one_step, initial_state, keys)
-        return states
-
-    # Run sampling
-    print(f"Running MCMC sampling ({num_samples} samples)...")
-    print("This may take several minutes...")
-    start_time = datetime.now()
-
+    # Generate initial live points and prior function
     rng_key = jax.random.PRNGKey(random_seed)
-    states = inference_loop(rng_key, nuts_kernel, initial_state, num_samples)
+    rng_key, prior_key = jax.random.split(rng_key)
+    particles, uniform_log_prior = uniform_prior(prior_key, num_live_points, prior_bounds)
 
-    end_time = datetime.now()
-    duration = (end_time - start_time).total_seconds()
+    print(f"\nInitializing with {num_live_points} live points...")
+    print(f"Parameters: {', '.join(prior_bounds.keys())}")
 
-    print(f"\nSampling completed in {duration:.2f} seconds")
-    print(f"Average time per sample: {duration/num_samples:.3f} seconds")
+    nested_sampler = blackjax.nss(
+        logprior_fn=uniform_log_prior,
+        loglikelihood_fn=log_likelihood,
+        num_delete=num_delete,
+        num_inner_steps=num_inner_steps,
+    )
+
+    init_fn = jax.jit(nested_sampler.init)
+    step_fn = jax.jit(nested_sampler.step)
+
+    live = init_fn(particles)
+    dead = []
+    with tqdm(desc="Dead points", unit=" dead points") as pbar:
+        while not live.logZ_live - live.logZ < convergence_threshold:
+            rng_key, subkey = jax.random.split(rng_key, 2)
+            live, dead_info = step_fn(subkey, live)
+            dead.append(dead_info)
+            pbar.update(num_delete)
+
+    dead = blackjax.ns.utils.finalise(live, dead)
+
+    print(f"\n{'=' * 60}")
+    print(f"Nested Sampling Complete - {len(dead)} iterations")
     print("=" * 60)
     print()
 
-    return states
+    return dead

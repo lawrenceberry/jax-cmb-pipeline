@@ -2,15 +2,13 @@
 JAX CMB Pipeline - Main Entry Point
 
 Cosmological parameter inference pipeline for Planck TT data using
-NUTS MCMC sampling with JAX-accelerated likelihoods.
+nested sampling with JAX-accelerated likelihoods.
 """
 import yaml
-from pathlib import Path
 
 # Import pipeline modules
 from jax_cmb_pipeline.data_loading import load_planck_data
 from jax_cmb_pipeline.emulator import setup_emulator
-from jax_cmb_pipeline.priors import create_log_prior
 from jax_cmb_pipeline.likelihood import create_log_likelihood
 from jax_cmb_pipeline.inference import run_inference
 from jax_cmb_pipeline.plotting import analyze_results
@@ -32,13 +30,11 @@ def main():
     2. Load Planck TT data
     3. Setup emulator
     4. Create likelihood function
-    5. Create prior function
-    6. Create posterior function
-    7. Run NUTS inference
-    8. Analyze and plot results
+    5. Run nested sampling inference (with uniform priors)
+    6. Analyze and plot results
     """
     print("\n" + "=" * 60)
-    print("JAX CMB Pipeline - Planck TT Inference")
+    print("JAX CMB Pipeline - Planck TT Nested Sampling")
     print("=" * 60)
     print()
 
@@ -50,53 +46,22 @@ def main():
     print("  Configuration loaded successfully")
     print()
 
-    # ============================================================
-    # 2. Load Planck Data
-    # ============================================================
-    tt_ell, tt_cl, tt_err, tt_cov = load_planck_data(config)
+    # Load Planck Data
+    observed_tt_ell, observed_tt_cl, observed_tt_cov = load_planck_data(config)
 
-    # ============================================================
-    # 3. Setup Emulator
-    # ============================================================
+    # Setup Emulator
     emulator = setup_emulator(config)
 
-    # ============================================================
-    # 4. Create Likelihood Function
-    # ============================================================
-    log_likelihood = create_log_likelihood(tt_cl, tt_cov, emulator, tt_ell)
+    # Create Likelihood Function
+    log_likelihood = create_log_likelihood(observed_tt_ell, observed_tt_cl, observed_tt_cov, emulator)
 
-    # ============================================================
-    # 5. Create Prior Function
-    # ============================================================
-    log_prior = create_log_prior(config)
+    # Run Nested Sampling Inference
+    # Note: Nested sampling uses uniform_prior internally to generate
+    # both initial points and the prior function
+    results = run_inference(config, log_likelihood)
 
-    # ============================================================
-    # 6. Create Posterior Function
-    # ============================================================
-    print("=" * 60)
-    print("Creating Posterior Function")
-    print("=" * 60)
-    print("  Posterior = Prior + Likelihood")
-    print("=" * 60)
-    print()
-
-    def log_posterior(params):
-        """Combine prior and likelihood."""
-        return log_prior(params) + log_likelihood(params)
-
-    # ============================================================
-    # 7. Run NUTS Inference
-    # ============================================================
-    states = run_inference(log_posterior, config)
-
-    # ============================================================
-    # 8. Analyze and Plot Results
-    # ============================================================
-    analyze_results(states, config)
-
-    # ============================================================
-    # Done
-    # ============================================================
+    # Analyze and Plot Results
+    analyze_results(results, config)
     print("\n" + "=" * 60)
     print("Pipeline completed successfully!")
     print("=" * 60)

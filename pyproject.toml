@@ -5,12 +5,14 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "anesthetic",
     "blackjax",
     "cosmopower-jax",
-    "getdist",
     "jax[cuda13]",
     "matplotlib",
     "numpy",
+    "pyyaml>=6.0.3",
+    "tqdm>=4.67.1",
 ]
 
 [dependency-groups]

@@ -1,5 +1,5 @@
 # JAX CMB Pipeline Configuration
-# Configuration for Planck TT-only MCMC inference
+# Configuration for Planck TT-only nested sampling inference
 
 # Data paths
 data:
@@ -17,24 +17,16 @@ priors:
   omega_b: [0.005, 0.1]      # Physical baryon density
   omega_cdm: [0.001, 0.99]   # Physical CDM density
   h: [0.4, 1.0]              # Reduced Hubble constant
-  tau: [0.01, 0.8]           # Optical depth to reionization
+  tau_reio: [0.01, 0.8]      # Optical depth to reionization
   n_s: [0.8, 1.2]            # Scalar spectral index
-  ln10_10_A_s: [1.61, 4.0]   # Log primordial amplitude
+  ln10^{10}A_s: [1.61, 4.0]   # Log primordial amplitude
 
-# Initial position for MCMC
-initial_position:
-  omega_b: 0.025
-  omega_cdm: 0.11
-  h: 0.68
-  tau: 0.1
-  n_s: 0.97
-  ln10_10_A_s: 3.1
-
-# Sampling settings
+# Nested sampling settings
 sampling:
-  num_samples: 50
-  step_size: 0.001
-  inv_mass_matrix: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
+  num_live_points: 500       # Number of live points
+  num_delete: 50             # Number of points to delete per iteration
+  num_inner_steps: 20        # Number of inner MCMC steps for slice sampling
+  convergence_threshold: -3.0  # Stop when log(Z_live) - log(Z) < threshold
   random_seed: 0
 
 # Output settings
