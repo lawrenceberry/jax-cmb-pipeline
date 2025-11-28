@@ -30,7 +30,7 @@ def main():
     Pipeline steps:
     1. Load configuration
     2. Load Planck TT data
-    3. Setup emulator and precompute indices
+    3. Setup emulator
     4. Create likelihood function
     5. Create prior function
     6. Create posterior function
@@ -58,12 +58,12 @@ def main():
     # ============================================================
     # 3. Setup Emulator
     # ============================================================
-    emulator, indices_jax = setup_emulator(config, tt_ell)
+    emulator = setup_emulator(config)
 
     # ============================================================
     # 4. Create Likelihood Function
     # ============================================================
-    log_likelihood = create_log_likelihood(tt_cl, tt_cov, emulator, indices_jax)
+    log_likelihood = create_log_likelihood(tt_cl, tt_cov, emulator, tt_ell)
 
     # ============================================================
     # 5. Create Prior Function

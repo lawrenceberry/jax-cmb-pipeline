@@ -3,9 +3,10 @@ Likelihood computation for CMB data.
 """
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 
-def create_log_likelihood(tt_cl, tt_cov, emulator, indices_jax):
+def create_log_likelihood(tt_cl, tt_cov, emulator, tt_ell):
     """
     Create a log-likelihood function using a factory pattern.
 
@@ -20,14 +21,28 @@ def create_log_likelihood(tt_cl, tt_cov, emulator, indices_jax):
         Covariance matrix
     emulator : CosmoPowerJAX
         Initialized emulator for theory predictions
-    indices_jax : jax.numpy.ndarray
-        Precomputed indices for selecting observed multipoles
+    tt_ell : np.ndarray
+        Multipole moments from observed data
 
     Returns
     -------
     log_likelihood : callable
         JIT-compiled function that computes log-likelihood for given parameters
     """
+    # ============================================================
+    # Precompute indices for efficient JAX-based indexing
+    # ============================================================
+    # Convert to numpy arrays for index computation
+    emulator_modes_np = np.array(emulator.modes)
+    tt_ell_int = tt_ell.astype(int)
+
+    # For each multipole in tt_ell, find its index in emulator.modes
+    indices = np.array([np.where(emulator_modes_np == ell)[0][0]
+                        for ell in tt_ell_int])
+
+    # Convert to JAX array (immutable, can be captured in JIT)
+    indices_jax = jnp.array(indices)
+
     def params_to_theory_specs(params):
         """
         Extract theory predictions at observed multipoles using precomputed indices.
@@ -95,7 +110,10 @@ def create_log_likelihood(tt_cl, tt_cov, emulator, indices_jax):
     print("Likelihood Configuration")
     print("=" * 60)
     print(f"  Data points: {len(tt_cl)}")
+    print(f"  Multipole range: ℓ = {int(tt_ell[0])} to {int(tt_ell[-1])}")
     print(f"  Covariance matrix shape: {tt_cov.shape}")
+    print(f"  Precomputed {len(indices_jax)} indices for multipole selection")
+    print(f"  Emulator mode range: ℓ = {int(emulator_modes_np[0])} to {int(emulator_modes_np[-1])}")
     print("  Likelihood type: Gaussian")
     print("  JIT-compiled: Yes")
     print("=" * 60)
