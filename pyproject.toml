@@ -18,3 +18,4 @@ dev = []
 
 [tool.uv.sources]
 cosmopower-jax = { git = "https://github.com/dpiras/cosmopower-jax" }
+blackjax = { git = "https://github.com/handley-lab/blackjax", rev = "nested_sampling" }
